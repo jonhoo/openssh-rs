@@ -1,7 +1,14 @@
 use openssh::*;
-use std::io;
-use std::process::Stdio;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::{
+    io,
+    net::{Ipv4Addr, SocketAddrV4},
+};
+use std::{net::SocketAddr, process::Stdio};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    task,
+};
 
 // TODO: how do we test the connection actually _failing_ so that the master reports an error?
 
@@ -613,4 +620,84 @@ async fn auth_failed() {
         }
         e => unreachable!("{:?}", e),
     }
+}
+
+#[tokio::test]
+async fn forward_local_port_to_remote() {
+    let session = Session::connect(&addr(), KnownHosts::Accept).await.unwrap();
+    session.check().await.unwrap();
+    let listen_task = task::spawn(async {
+        let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2020))
+            .await
+            .unwrap();
+        let (mut client, _) = listener.accept().await.unwrap();
+        let mut buffer = String::new();
+        client.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(buffer, "hello world");
+    });
+
+    let forward = session
+        .forward_port(
+            PortForwardingType::LocalPortToRemote,
+            ListenAddr::SocketAddr(SocketAddr::V4(SocketAddrV4::new(
+                Ipv4Addr::new(127, 0, 0, 1),
+                2020,
+            ))),
+            ListenAddr::SocketAddr(SocketAddr::V4(SocketAddrV4::new(
+                Ipv4Addr::new(127, 0, 0, 1),
+                2050,
+            ))),
+        )
+        .unwrap();
+    let mut client = TcpStream::connect(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2050))
+        .await
+        .unwrap();
+    client.write_all(b"hello world").await.unwrap();
+    client.flush().await.unwrap();
+    drop(client);
+
+    listen_task.await.unwrap();
+    drop(forward);
+
+    session.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn forward_remote_port_to_local() {
+    let session = Session::connect(&addr(), KnownHosts::Accept).await.unwrap();
+    session.check().await.unwrap();
+    let listen_task = task::spawn(async {
+        let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2020))
+            .await
+            .unwrap();
+        let (mut client, _) = listener.accept().await.unwrap();
+        let mut buffer = String::new();
+        client.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(buffer, "hello world");
+    });
+
+    let forward = session
+        .forward_port(
+            PortForwardingType::RemotePortToLocal,
+            ListenAddr::SocketAddr(SocketAddr::V4(SocketAddrV4::new(
+                Ipv4Addr::new(127, 0, 0, 1),
+                2020,
+            ))),
+            ListenAddr::SocketAddr(SocketAddr::V4(SocketAddrV4::new(
+                Ipv4Addr::new(127, 0, 0, 1),
+                2050,
+            ))),
+        )
+        .unwrap();
+    let mut client = TcpStream::connect(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 2050))
+        .await
+        .unwrap();
+    client.write_all(b"hello world").await.unwrap();
+    client.flush().await.unwrap();
+    drop(client);
+
+    listen_task.await.unwrap();
+    drop(forward);
+
+    session.close().await.unwrap();
 }

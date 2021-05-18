@@ -132,6 +132,12 @@ pub use error::Error;
 mod sftp;
 pub use sftp::{Mode, RemoteFile, Sftp};
 
+mod port_forwarding;
+pub use port_forwarding::{PortForward, PortForwardingType};
+
+mod listen_addr;
+pub use listen_addr::ListenAddr;
+
 /// A single SSH session to a remote host.
 ///
 /// You can use [`command`] to start a new command on the connected machine.
@@ -310,6 +316,23 @@ impl Session {
     /// See [`Sftp`] for details on how to interact with the remote files.
     pub fn sftp(&self) -> Sftp<'_> {
         Sftp::new(self)
+    }
+
+    /// Opens a port forwarded to / from the local machine.
+    /// Dropping the returned value closes this connection
+    pub fn forward_port(
+        &self,
+        forward_type: PortForwardingType,
+        local_addr: ListenAddr,
+        remote_addr: ListenAddr,
+    ) -> Result<PortForward, Error> {
+        PortForward::new(
+            self.ctl_path(),
+            &self.addr,
+            forward_type,
+            local_addr,
+            remote_addr,
+        )
     }
 
     /// Terminate the remote connection.
