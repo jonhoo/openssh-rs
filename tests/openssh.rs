@@ -47,23 +47,19 @@ async fn config_file() {
     let ssh_config_contents = r#"Host config-file-test
         User test-user
         HostName 127.0.0.1
-        Port 9"#;
+        Port 2222"#;
     let mut ssh_config_handle = std::fs::File::create(&ssh_config_file).unwrap();
     ssh_config_handle
         .write_all(ssh_config_contents.as_bytes())
         .unwrap();
-    match SessionBuilder::default()
+    let session = SessionBuilder::default()
+        .known_hosts_check(KnownHosts::Accept)
         .config_file(&ssh_config_file)
         .connect("config-file-test") // this host name is resolved by the custom ssh_config.
         .await
-        .unwrap_err()
-    {
-        Error::Connect(e) => {
-            eprintln!("{:?}", e);
-            assert_eq!(e.kind(), io::ErrorKind::ConnectionRefused);
-        }
-        e => unreachable!("{:?}", e),
-    }
+        .unwrap();
+    session.check().await.unwrap();
+    session.close().await.unwrap();
     std::fs::remove_dir_all(&dirname).unwrap();
 }
 

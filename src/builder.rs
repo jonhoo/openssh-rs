@@ -95,8 +95,9 @@ impl SessionBuilder {
         self
     }
 
-    /// Set an alternative per-user configuration file instead of the default ~/.ssh/config
-    /// location(`ssh -F`).
+    /// Set an alternative per-user configuration file.
+    ///
+    /// By default, ssh uses `~/.ssh/config`. This is equivalent to `ssh -F <p>`.
     ///
     /// Defaults to `None`.
     pub fn config_file(&mut self, p: impl AsRef<Path>) -> &mut Self {
