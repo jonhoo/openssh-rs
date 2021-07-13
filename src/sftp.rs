@@ -480,12 +480,10 @@ impl RemoteFile<'_> {
             } else {
                 io::Error::new(io::ErrorKind::WriteZero, err)
             }
+        } else if err.ends_with(": No such file or directory") {
+            io::Error::new(io::ErrorKind::NotFound, err)
         } else {
-            if err.ends_with(": No such file or directory") {
-                io::Error::new(io::ErrorKind::NotFound, err)
-            } else {
-                io::Error::new(io::ErrorKind::UnexpectedEof, err)
-            }
+            io::Error::new(io::ErrorKind::UnexpectedEof, err)
         }))
     }
 }

@@ -1,5 +1,6 @@
 use openssh::*;
 use std::io;
+use std::io::Write;
 use std::process::Stdio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -33,6 +34,33 @@ async fn control_dir() {
     assert!(iter.next().is_some());
     session.close().await.unwrap();
     std::fs::remove_dir(&dirname).unwrap();
+}
+
+#[tokio::test]
+#[cfg_attr(not(ci), ignore)]
+async fn config_file() {
+    let dirname = std::path::Path::new("config-file-test");
+    let ssh_config_file = dirname.join("alternate_ssh_config");
+    assert!(!dirname.exists());
+    assert!(!ssh_config_file.exists());
+    std::fs::create_dir(dirname).unwrap();
+    let ssh_config_contents = r#"Host config-file-test
+        User test-user
+        HostName 127.0.0.1
+        Port 2222"#;
+    let mut ssh_config_handle = std::fs::File::create(&ssh_config_file).unwrap();
+    ssh_config_handle
+        .write_all(ssh_config_contents.as_bytes())
+        .unwrap();
+    let session = SessionBuilder::default()
+        .known_hosts_check(KnownHosts::Accept)
+        .config_file(&ssh_config_file)
+        .connect("config-file-test") // this host name is resolved by the custom ssh_config.
+        .await
+        .unwrap();
+    session.check().await.unwrap();
+    session.close().await.unwrap();
+    std::fs::remove_dir_all(&dirname).unwrap();
 }
 
 #[tokio::test]

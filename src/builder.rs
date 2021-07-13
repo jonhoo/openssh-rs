@@ -16,6 +16,7 @@ pub struct SessionBuilder {
     server_alive_interval: Option<u64>,
     known_hosts_check: KnownHosts,
     control_dir: Option<PathBuf>,
+    config_file: Option<PathBuf>,
 }
 
 impl Default for SessionBuilder {
@@ -28,6 +29,7 @@ impl Default for SessionBuilder {
             server_alive_interval: None,
             known_hosts_check: KnownHosts::Add,
             control_dir: None,
+            config_file: None,
         }
     }
 }
@@ -90,6 +92,16 @@ impl SessionBuilder {
     /// If not set, `./` will be used (the current directory).
     pub fn control_directory(&mut self, p: impl AsRef<Path>) -> &mut Self {
         self.control_dir = Some(p.as_ref().to_path_buf());
+        self
+    }
+
+    /// Set an alternative per-user configuration file.
+    ///
+    /// By default, ssh uses `~/.ssh/config`. This is equivalent to `ssh -F <p>`.
+    ///
+    /// Defaults to `None`.
+    pub fn config_file(&mut self, p: impl AsRef<Path>) -> &mut Self {
+        self.config_file = Some(p.as_ref().to_path_buf());
         self
     }
 
@@ -194,6 +206,10 @@ impl SessionBuilder {
             // if the user gives a keyfile, _only_ use that keyfile
             init.arg("-o").arg("IdentitiesOnly=yes");
             init.arg("-i").arg(k);
+        }
+
+        if let Some(ref config_file) = self.config_file {
+            init.arg("-F").arg(config_file);
         }
 
         init.arg(destination);
